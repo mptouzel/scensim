@@ -34,7 +34,7 @@ EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
 def load_study_definition(path: Path) -> dict[str, Any]:
     """Parse and return the study definition YAML."""
     with path.open() as f:
-        data = cast(dict[str, Any], yaml.safe_load(f))
+        data = cast("dict[str, Any]", yaml.safe_load(f))
     # Basic structural validation
     for key in ("study", "hypotheses"):
         if key not in data:
@@ -55,12 +55,6 @@ def validate_sources(data: dict[str, Any]) -> list[str]:
                 eval_path = PROJECT_ROOT / run["eval"]
                 if not eval_path.is_file():
                     errors.append(f"[{hyp_id}/{cond_name}] eval file missing: {eval_path}")
-    # Analysis file (optional)
-    analysis_path = data.get("analysis", {}).get("comparison")
-    if analysis_path:
-        full = PROJECT_ROOT / analysis_path
-        if not full.is_file():
-            errors.append(f"[analysis] comparison file missing: {full}")
     return errors
 
 
@@ -170,6 +164,7 @@ def organize_study(data: dict[str, Any], *, dry_run: bool = False) -> Path:
                 yaml.dump(hyp_meta, f, default_flow_style=False, sort_keys=False)
 
         var_name = hyp["independent_variable"]
+        hyp_eval_results: list[dict[str, Any]] = []
 
         for cond_name, cond in hyp["conditions"].items():
             cond_dir = hyp_dir / f"{var_name}={cond_name}"
@@ -216,7 +211,7 @@ def organize_study(data: dict[str, Any], *, dry_run: bool = False) -> Path:
                         print(f"        [copy] eval.json <- {eval_path.name}")
                     else:
                         shutil.copy2(eval_path, eval_dest)
-                    # Collect for summary
+                    # Collect for runs.json and summary
                     with eval_path.open() as f:
                         eval_data = json.load(f)
                     eval_data["_meta"] = {
@@ -224,22 +219,29 @@ def organize_study(data: dict[str, Any], *, dry_run: bool = False) -> Path:
                         "condition": cond_name,
                         "scenario": scenario,
                     }
+                    hyp_eval_results.append(eval_data)
                     all_eval_results.append(eval_data)
                 else:
                     print(f"        [skip] eval file not found: {eval_path}")
 
-        # -- Copy analysis.json at hypothesis level --
-        analysis_src = data.get("analysis", {}).get("comparison")
-        if analysis_src:
-            analysis_full = PROJECT_ROOT / analysis_src
-            analysis_dest = hyp_dir / "analysis.json"
-            if analysis_full.is_file():
-                if dry_run:
-                    print("    [copy] analysis.json")
-                else:
-                    shutil.copy2(analysis_full, analysis_dest)
-            else:
-                print(f"    [skip] analysis file not found: {analysis_full}")
+        # -- Write runs.json at hypothesis level --
+        runs_data = [
+            {
+                "condition": r["_meta"]["condition"],
+                "scenario": r["_meta"]["scenario"],
+                "checkpoint": r.get("checkpoint"),
+                "agents": r.get("agents", {}),
+                "aggregated": r.get("aggregated", {}),
+                "summary": r.get("summary", {}),
+            }
+            for r in hyp_eval_results
+        ]
+        runs_path = hyp_dir / "runs.json"
+        if dry_run:
+            print(f"    [write] {runs_path}")
+        else:
+            with runs_path.open("w") as f:
+                json.dump(runs_data, f, indent=2)
 
     # -- Write summary.json at study level --
     summary = build_summary(all_eval_results)
@@ -257,24 +259,16 @@ def organize_study(data: dict[str, Any], *, dry_run: bool = False) -> Path:
 # Summary aggregation
 # ---------------------------------------------------------------------------
 
-METRIC_NAMES = [
-    "self_bleu",
-    "near_duplicate_rate",
-    "target_fixation",
-    "action_entropy",
-    "lexical_diversity",
-    "content_evolution",
-    "opener_variety",
-    "action_diversity",
-    "new_post_rate",
-    "inter_agent_distinctiveness",
-]
-
 
 def build_summary(eval_results: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate eval results across all hypotheses/conditions into a summary."""
+    """Aggregate eval results across all hypotheses/conditions into a summary.
+
+    ``metrics_by_condition`` is nested as ``{hypothesis_id: {condition: {metric: value}}}``
+    so condition names that appear in multiple hypotheses don't collide.
+    Metric names are discovered from the eval data rather than hard-coded.
+    """
     if not eval_results:
-        return {"conditions": [], "metrics": {}}
+        return {"conditions": [], "metrics_by_condition": {}}
 
     conditions: list[dict[str, Any]] = []
     for r in eval_results:
@@ -288,23 +282,30 @@ def build_summary(eval_results: list[dict[str, Any]]) -> dict[str, Any]:
         }
         conditions.append(entry)
 
-    # Aggregate metrics: group by condition, average across scenarios
-    by_condition: dict[str, list[dict[str, Any]]] = {}
+    # Group by (hypothesis, condition), average each metric across scenarios
+    by_hyp_cond: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for c in conditions:
-        key = c["condition"]
-        by_condition.setdefault(key, []).append(c)
+        hyp = c["hypothesis"] or ""
+        cond = c["condition"] or ""
+        by_hyp_cond.setdefault(hyp, {}).setdefault(cond, []).append(c)
 
-    metrics_by_condition: dict[str, dict[str, float | None]] = {}
-    for cond_name, entries in by_condition.items():
-        agg: dict[str, float | None] = {}
-        for metric in METRIC_NAMES:
-            vals = [
-                e["aggregated"].get(metric)
-                for e in entries
-                if e["aggregated"].get(metric) is not None
-            ]
-            agg[metric] = sum(vals) / len(vals) if vals else None
-        metrics_by_condition[cond_name] = agg
+    metrics_by_condition: dict[str, dict[str, dict[str, float | None]]] = {}
+    for hyp_id, conds in by_hyp_cond.items():
+        metrics_by_condition[hyp_id] = {}
+        for cond_name, entries in conds.items():
+            # Discover metric names from whatever keys are present
+            metric_names: set[str] = set()
+            for e in entries:
+                metric_names.update(e["aggregated"].keys())
+            agg: dict[str, float | None] = {}
+            for metric in sorted(metric_names):
+                vals = [
+                    e["aggregated"][metric]
+                    for e in entries
+                    if e["aggregated"].get(metric) is not None
+                ]
+                agg[metric] = sum(vals) / len(vals) if vals else None
+            metrics_by_condition[hyp_id][cond_name] = agg
 
     return {
         "conditions": conditions,
