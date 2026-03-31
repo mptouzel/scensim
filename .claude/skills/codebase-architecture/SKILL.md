@@ -33,7 +33,7 @@ Hydra composes configs via `defaults` in `config/experiment.yaml`:
 ```
 experiment.yaml
 ├── simulation: sequential.yaml | parallel.yaml
-├── model: gpt4.yaml | claude.yaml | multi_model.yaml | mock.yaml
+├── model: gpt4omini.yaml | gpt4o.yaml | claude.yaml | multi_model.yaml | mock.yaml
 ├── environment: generic_world.yaml | game_theoretic.yaml
 ├── scenario: marketplace.yaml | debate.yaml | <custom>.yaml
 └── evaluation: basic_metrics.yaml
@@ -115,7 +115,7 @@ api_key: ${oc.env:OPENAI_API_KEY,}
 **Multi-model** (`config/model/multi_model.yaml`):
 ```yaml
 model_registry:
-  gpt4: { _target_: ..., model_name: gpt-4o-mini }
+  gpt4omini: { _target_: ..., model_name: gpt-4o-mini }
   claude: { _target_: ..., model_name: claude-3-5-sonnet }
 entity_model_mapping:
   Alice: gpt4

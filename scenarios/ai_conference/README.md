@@ -66,7 +66,7 @@ Jordan follows 7/8 agents (primary bridge). Sam leans conference-side but also f
 uv run python run_experiment.py scenario=ai_conference model=mock simulation.execution.max_steps=2
 
 # Full run
-uv run python run_experiment.py scenario=ai_conference model=gpt4 simulation.execution.max_steps=5
+uv run python run_experiment.py scenario=ai_conference model=gpt4omini simulation.execution.max_steps=5
 
 # Explore results
 uv run python scripts/explore_dashboard.py outputs/ai_conference_experiment/.../checkpoints/step_N_checkpoint.json --seed-tags groupthink_seed

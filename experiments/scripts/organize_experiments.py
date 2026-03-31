@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Organize experiment outputs into a browsable scientific hierarchy.
 
-Reads a study definition YAML (``experiments/{study}/study.yaml``) and builds
+Reads a study definition YAML (``experiments/studies/{study}/study.yaml``) and builds
 the rest of the tree: hypothesis dirs, condition dirs, config/eval snapshots,
 and a study_summary.yaml + summary.json at the study level.
 
 Usage:
-    uv run python scripts/organize_experiments.py experiments/style_diversity/study.yaml
-    uv run python scripts/organize_experiments.py experiments/style_diversity/study.yaml --dry-run
-    uv run python scripts/organize_experiments.py experiments/style_diversity/study.yaml --clean
+    uv run python experiments/scripts/organize_experiments.py experiments/studies/style_diversity/study.yaml
+    uv run python experiments/scripts/organize_experiments.py experiments/studies/style_diversity/study.yaml --dry-run
+    uv run python experiments/scripts/organize_experiments.py experiments/studies/style_diversity/study.yaml --clean
 """
 
 from __future__ import annotations
@@ -18,72 +18,15 @@ import json
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import yaml
 
-PROJECT_ROOT = Path(__file__).parent.parent
-EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
+sys.path.insert(0, str(Path(__file__).parent))
+from study_io import extract_run_metadata, load_study_definition, validate_sources  # noqa: E402
 
-
-# ---------------------------------------------------------------------------
-# Study definition loading & validation
-# ---------------------------------------------------------------------------
-
-
-def load_study_definition(path: Path) -> dict[str, Any]:
-    """Parse and return the study definition YAML."""
-    with path.open() as f:
-        data = cast("dict[str, Any]", yaml.safe_load(f))
-    # Basic structural validation
-    for key in ("study", "hypotheses"):
-        if key not in data:
-            print(f"Error: study definition missing required key '{key}'", file=sys.stderr)
-            sys.exit(1)
-    return data
-
-
-def validate_sources(data: dict[str, Any]) -> list[str]:
-    """Check that all referenced source paths exist. Return list of errors."""
-    errors: list[str] = []
-    for hyp_id, hyp in data["hypotheses"].items():
-        for cond_name, cond in hyp["conditions"].items():
-            for run in cond["runs"]:
-                source = PROJECT_ROOT / run["source"]
-                if not source.is_dir():
-                    errors.append(f"[{hyp_id}/{cond_name}] source dir missing: {source}")
-                eval_path = PROJECT_ROOT / run["eval"]
-                if not eval_path.is_file():
-                    errors.append(f"[{hyp_id}/{cond_name}] eval file missing: {eval_path}")
-    return errors
-
-
-# ---------------------------------------------------------------------------
-# Metadata extraction
-# ---------------------------------------------------------------------------
-
-
-def extract_run_metadata(source_dir: Path) -> dict[str, Any]:
-    """Read .hydra/config.yaml and extract key metadata fields."""
-    hydra_config = source_dir / ".hydra" / "config.yaml"
-    metadata: dict[str, Any] = {"source": str(source_dir.relative_to(PROJECT_ROOT))}
-    if not hydra_config.is_file():
-        return metadata
-    with hydra_config.open() as f:
-        cfg = yaml.safe_load(f)
-    # Extract the most useful fields
-    model = cfg.get("model", {})
-    metadata["model_name"] = model.get("model_name", model.get("name"))
-    metadata["model_config"] = model.get("name")
-    scenario = cfg.get("scenario", {})
-    metadata["scenario"] = scenario.get("name")
-    metadata["scenario_description"] = scenario.get("description")
-    sim = cfg.get("simulation", {})
-    execution = sim.get("execution", {})
-    metadata["max_steps"] = execution.get("max_steps")
-    exp = cfg.get("experiment", {})
-    metadata["seed"] = exp.get("seed")
-    return metadata
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+EXPERIMENTS_DIR = PROJECT_ROOT / "experiments" / "studies"
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +130,8 @@ def organize_study(data: dict[str, Any], *, dry_run: bool = False) -> Path:
 
                 # 1. Write config.yaml (extracted metadata)
                 config_path = run_dir / "config.yaml"
-                metadata = extract_run_metadata(source_dir)
+                base_config = study.get("base_config")
+                metadata = extract_run_metadata(source_dir, base_config=base_config)
                 metadata["condition"] = cond_name
                 metadata["hypothesis"] = hyp_id
                 if dry_run:

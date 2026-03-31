@@ -32,7 +32,7 @@ These mappings are environment-independent — they hold regardless of which eng
 | **τ** | Trajectory | Checkpoint JSON + raw log — `Simulation.make_checkpoint_data()` at `src/simulation/simulation.py:352` |
 | **X** | Simulation specification | Hydra config composition: `config/experiment.yaml` → `BaseSimulator.build_config()` at `src/simulation/simulators/base.py:345` |
 | **Θ** | All LLM parameters | `config/model/*.yaml` + `scenario.agents.entities[i].params` (persona, goal, personality, background) |
-| **L(τ)** | Evaluation function | `Probe.query()` at `src/evaluation/probes.py:58`; `scripts/eval_style_diversity.py` (social media-specific) |
+| **L(τ)** | Evaluation function | `Probe.query()` at `src/evaluation/probes.py:58`; `experiments/studies/style_diversity/eval.py` (social media-specific) |
 
 ---
 
@@ -79,7 +79,7 @@ The *action spec* (what the agent is asked to do) varies by engine:
 ### Agent LLM parameters: **θ^i**
 
 Environment-independent:
-- **Model weights & temperature**: `config/model/*.yaml` (`gpt4.yaml`, `gpt4o.yaml`, `claude.yaml`, `multi_model.yaml`)
+- **Model weights & temperature**: `config/model/*.yaml` (`gpt4omini.yaml`, `gpt4o.yaml`, `claude.yaml`, `multi_model.yaml`)
 - **Persona & goals**: `scenario.agents.entities[i].params` — fields vary by scenario (e.g., `persona_context` for election voters, `budget` and `strategy` for marketplace buyers)
 
 ### Environment parameters: **θ_Env**
@@ -214,7 +214,7 @@ The paper identifies five configurable components of a simulator. Each maps to a
 | Paper component | Config group | Key files |
 |----------------|-------------|-----------|
 | **Simulator** (engine, logging, execution) | `config/simulation/` | `sequential.yaml`, `parallel.yaml` |
-| **Model** (genAI models, Θ) | `config/model/` | `gpt4.yaml`, `gpt4o.yaml`, `claude.yaml`, `multi_model.yaml`, `mock.yaml` |
+| **Model** (genAI models, Θ) | `config/model/` | `gpt4omini.yaml`, `gpt4o.yaml`, `claude.yaml`, `multi_model.yaml`, `mock.yaml` |
 | **Environment** (T, θ_Env) | `config/environment/` | `generic_world.yaml`, `social_media.yaml`, `game_theoretic.yaml` |
 | **Scenario** (A^i, Z^i, shared knowledge) | `config/scenario/` + `scenarios/` | Per-scenario YAML (`election`, `marketplace`, `misinformation`, `debate`, `ai_conference`) + Python prefabs |
 | **Evaluation** (L) | `config/evaluation/` + `scripts/` | `basic_metrics.yaml`, `election.yaml`, `marketplace.yaml`, `eval_style_diversity.py` |
@@ -282,7 +282,7 @@ In simultaneous engines, m^i_t = 1 for all i. In sequential engines, m^i_t is de
 
 ### 8.7 Evaluation tooling is environment-specific
 
-**Gap**: The probe system (`src/evaluation/probes.py`) is generic — it works via `entity.act()` and applies to any scenario. But the style diversity script (`scripts/eval_style_diversity.py`) is specific to the social media environment (it requires `SocialMediaApp` posts). There is no equivalent reference-free diversity metric for sequential/generic scenarios.
+**Gap**: The probe system (`src/evaluation/probes.py`) is generic — it works via `entity.act()` and applies to any scenario. But the style diversity script (`experiments/studies/style_diversity/eval.py`) is specific to the social media environment (it requires `SocialMediaApp` posts). There is no equivalent reference-free diversity metric for sequential/generic scenarios.
 
 **Suggestion (code)**: Factor out the generic parts of `eval_style_diversity.py` (self-BLEU, lexical diversity, n-gram overlap) into a utility that operates on any list of agent utterances extracted from `raw_log`, regardless of environment.
 
@@ -310,7 +310,7 @@ In simultaneous engines, m^i_t = 1 for all i. In sequential engines, m^i_t is de
 | `src/simulation/simulators/base.py` | `BaseSimulator.build_config()` — **X** assembly (all environments) |
 | `src/simulation/simulation.py` | `Simulation.play()`, checkpoints — **τ** (all environments) |
 | `src/evaluation/probes.py` | `Probe.query()` — **L** (all environments) |
-| `scripts/eval_style_diversity.py` | Style diversity metrics — **L** (social media-specific) |
+| `experiments/studies/style_diversity/eval.py` | Style diversity metrics — **L** (social media-specific) |
 | `config/experiment.yaml` | Hydra defaults composition — **X** (all environments) |
 | `config/environment/*.yaml` | Environment + engine config — **θ_Env** |
 | `config/scenario/*.yaml` | Scenario definitions — agent params, premises, prefab wiring |

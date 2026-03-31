@@ -159,9 +159,14 @@ Thumbs.db
 outputs/
 experiments/*
 !experiments/study_schema.md
-!experiments/*/
-experiments/*/*
-!experiments/*/study.yaml
+!experiments/scripts/
+!experiments/studies/
+experiments/studies/*
+!experiments/studies/*/
+experiments/studies/*/*
+!experiments/studies/*/study.yaml
+!experiments/studies/*/eval.py
+!experiments/studies/*/notebook.ipynb
 multirun/
 logs/
 checkpoints/

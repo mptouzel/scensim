@@ -3,7 +3,7 @@
 
 defaults:
   - simulation: sequential
-  - model: gpt4
+  - model: gpt4omini
   - environment: generic_world
   - scenario: marketplace
   - evaluation: basic_metrics

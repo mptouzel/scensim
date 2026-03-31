@@ -190,16 +190,16 @@ simulator/
 │   ├── run_social_media_sim.py    # Standalone social media runner
 │   ├── analyze_social_media.py    # CLI analysis tool
 │   ├── explore_dashboard.py       # Interactive Dash explorer
-│   ├── eval_style_diversity.py    # Style diversity evaluation metrics
-│   ├── organize_experiments.py    # Organize runs into study/hypothesis tree
 │   ├── run_valueflow.py           # ValueFlow sweep runner (baseline + perturbed + metrics)
 │   └── judge_probe_results.py     # Backfill null probe values via LLM judge
-├── experiments/                   # Organized experiment results (gitignored except study_schema.md)
-│   ├── study_schema.md            # Canonical study structure template
-│   └── {study_name}/              # Per-study results tree
-├── notebooks/                     # Results notebooks
-│   ├── study_style_diversity.ipynb
-│   └── study_valueflow.ipynb      # ValueFlow H1-H5 analysis + H2 model comparison
+├── experiments/                   # Study definitions, tooling, and organized results
+│   ├── study_schema.md            # Canonical study structure and pipeline
+│   ├── scripts/
+│   │   ├── study_io.py            # Shared I/O: load/validate study.yaml, extract run metadata
+│   │   └── organize_experiments.py  # Organizer — builds studies/ tree from study.yaml
+│   └── studies/
+│       └── {study_name}/          # Per-study: study.yaml + eval.py + notebook.ipynb + generated results tree
+├── notebooks/                     # Empty — notebooks live in experiments/studies/{study_name}/notebook.ipynb
 └── tests/                         # Test suite (241 tests)
     ├── conftest.py                # Shared fixtures
     ├── environments/              # Social media environment tests
@@ -348,13 +348,13 @@ Reference-free evaluation of agent linguistic diversity:
 
 ```bash
 # Evaluate a single run
-uv run python scripts/eval_style_diversity.py path/to/checkpoint.json
+uv run python experiments/studies/style_diversity/eval.py path/to/checkpoint.json
 
 # Compare two runs
-uv run python scripts/eval_style_diversity.py ckpt1.json ckpt2.json --compare
+uv run python experiments/studies/style_diversity/eval.py ckpt1.json ckpt2.json --compare
 
 # Export to file
-uv run python scripts/eval_style_diversity.py checkpoint.json -o results/
+uv run python experiments/studies/style_diversity/eval.py checkpoint.json -o results/
 ```
 
 Computes 10 metrics per agent: self-BLEU, lexical diversity, content evolution, opener variety, action entropy, near-duplicate rate, target fixation, action diversity, new post rate, and inter-agent distinctiveness.
@@ -364,7 +364,7 @@ Computes 10 metrics per agent: self-BLEU, lexical diversity, content evolution, 
 Organize simulation runs into a browsable study/hypothesis/condition hierarchy:
 
 ```bash
-uv run python scripts/organize_experiments.py experiments/style_diversity/study.yaml
+uv run python experiments/scripts/organize_experiments.py experiments/studies/style_diversity/study.yaml
 ```
 
 See `experiments/study_schema.md` for the full schema covering directory layout, file formats, and the standard results notebook structure.
